@@ -1152,6 +1152,24 @@ pub fn main_get_app_name_sync() -> SyncReturn<String> {
     SyncReturn(get_app_name())
 }
 
+pub fn hand_aspect_bind(window_id: i32, token: String) -> SyncReturn<bool> {
+    #[cfg(windows)]
+    return SyncReturn(crate::platform::windows::hand_aspect::bind(window_id, &token));
+    #[cfg(not(windows))]
+    {
+        let _ = (window_id, token);
+        SyncReturn(false)
+    }
+}
+
+pub fn hand_aspect_set(window_id: i32, ratio: f64, extra_w: i32, extra_h: i32) -> SyncReturn<bool> {
+    #[cfg(windows)]
+    crate::platform::windows::hand_aspect::set(window_id, ratio, extra_w, extra_h);
+    #[cfg(not(windows))]
+    let _ = (window_id, ratio, extra_w, extra_h);
+    SyncReturn(true)
+}
+
 pub fn main_uri_prefix_sync() -> SyncReturn<String> {
     SyncReturn(crate::get_uri_prefix())
 }

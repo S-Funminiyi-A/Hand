@@ -9,6 +9,7 @@ import 'package:flutter_hbb/common/shared_state.dart';
 import 'package:flutter_hbb/consts.dart';
 import 'package:flutter_hbb/models/input_model.dart';
 import 'package:flutter_hbb/models/state_model.dart';
+import 'package:flutter_hbb/desktop/hand/aspect_lock.dart';
 import 'package:flutter_hbb/desktop/pages/remote_page.dart';
 import 'package:flutter_hbb/desktop/widgets/remote_toolbar.dart';
 import 'package:flutter_hbb/desktop/widgets/tabbar_widget.dart';
@@ -64,6 +65,7 @@ class _ConnectionTabPageState extends State<ConnectionTabPage> {
     _display = display as int?;
     tryMoveToScreenAndSetFullscreen(screenRect);
     if (peerId != null) {
+      handBindAspectLock(params['windowId'], peerId!);
       ConnectionTypeState.init(peerId!);
       tabController.onSelected = (id) {
         final remotePage = tabController.widget(id);

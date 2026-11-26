@@ -4,6 +4,7 @@ import 'dart:math';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:flutter_hbb/desktop/hand/aspect_lock.dart';
 import 'package:bot_toast/bot_toast.dart';
 import 'package:desktop_multi_window/desktop_multi_window.dart';
 import 'package:flutter/gestures.dart';
@@ -2414,6 +2415,7 @@ class CanvasModel with ChangeNotifier {
     }
     _lastViewStyle = viewStyle;
     _scale = viewStyle.scale;
+    handUpdateAspectLock(size, displayWidth, displayHeight, style);
 
     // Apply custom scale percent when in Custom mode
     if (style == kRemoteViewStyleCustom) {
