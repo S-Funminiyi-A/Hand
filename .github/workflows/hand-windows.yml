@@ -1,4 +1,4 @@
-name: H+nd Windows build
+name: H&nd Windows build
 on:
   workflow_dispatch: {}
   push:
