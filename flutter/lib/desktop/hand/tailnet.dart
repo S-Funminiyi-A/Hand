@@ -43,6 +43,16 @@ class HandTailnetResult {
       this.ownerIps = const []]);
 }
 
+String _displayHost(String host, HandPcKind kind) {
+  if (kind != HandPcKind.staff || !host.startsWith('hand-')) return host;
+  return host
+      .substring(5)
+      .split('-')
+      .where((w) => w.isNotEmpty)
+      .map((w) => w[0].toUpperCase() + w.substring(1))
+      .join(' ');
+}
+
 Future<HandTailnetResult> readTailnet() async {
   const candidates = [
     r'C:\Program Files\Tailscale\tailscale.exe',
@@ -95,7 +105,7 @@ Future<HandTailnetResult> readTailnet() async {
       if (kind == null) continue;
       pcs.add(HandPc(
         key: peer['ID']?.toString() ?? ipv4,
-        hostName: peer['HostName'] as String? ?? ipv4,
+        hostName: _displayHost(peer['HostName'] as String? ?? ipv4, kind),
         ip: ipv4,
         os: peer['OS'] as String? ?? '',
         online: peer['Online'] == true,

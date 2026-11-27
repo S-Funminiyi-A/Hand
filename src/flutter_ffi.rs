@@ -1162,6 +1162,10 @@ pub fn hand_aspect_bind(window_id: i32, token: String) -> SyncReturn<bool> {
     }
 }
 
+pub fn hand_setup_info() -> SyncReturn<String> {
+    SyncReturn(crate::hand::setup_info())
+}
+
 pub fn hand_notify(title: String, body: String) -> SyncReturn<bool> {
     #[cfg(windows)]
     {
