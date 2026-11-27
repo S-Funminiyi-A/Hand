@@ -37,6 +37,10 @@ pub fn apply_defaults() {
         settings.insert(keys::OPTION_WHITELIST.to_owned(), TAILNET_ONLY.to_owned());
     }
     if let Some(password) = fleet_password() {
+        if let Ok(mut hard) = config::HARD_SETTINGS.write() {
+            hard.entry("password".to_owned())
+                .or_insert_with(|| password.to_owned());
+        }
         if let Ok(mut builtin) = config::BUILTIN_SETTINGS.write() {
             builtin.insert(
                 keys::OPTION_DEFAULT_CONNECT_PASSWORD.to_owned(),

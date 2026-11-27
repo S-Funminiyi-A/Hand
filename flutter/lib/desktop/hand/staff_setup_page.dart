@@ -91,6 +91,8 @@ try {
     if (\$LASTEXITCODE -eq 0) { \$joined = \$true } else { Start-Sleep -Seconds 5 }
   }
   if (-not \$joined) { throw 'Could not join the company network' }
+  powercfg /change standby-timeout-ac 0 | Out-Null
+  powercfg /change hibernate-timeout-ac 0 | Out-Null
   & ${_psQuote(Platform.resolvedExecutable)} --silent-install | Out-Null
   \$hand = ${_psQuote(_installedExe)}
   for (\$i = 0; \$i -lt 30 -and -not (Test-Path \$hand); \$i++) { Start-Sleep -Seconds 2 }
@@ -227,7 +229,7 @@ try {
           const Text('Set up H&nd on this PC', style: title),
           const SizedBox(height: 12),
           const Text(
-              'Your admin uses H&nd to help with your work from their own desk. They can see and use this PC, and you\'ll always see a "Connected" bar when they do.',
+              'Your admin uses H&nd to help with your work from their own desk. They can see and use this PC, and you\'ll always see a "Connected" bar when they do. This PC will stay awake while it\'s plugged in, so they can reach it after hours.',
               style: body),
           const SizedBox(height: 32),
           const Text('Your name',
