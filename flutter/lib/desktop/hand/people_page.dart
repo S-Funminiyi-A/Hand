@@ -93,12 +93,17 @@ class _HandPeoplePageState extends State<HandPeoplePage> {
         body: note.isEmpty ? 'Open H&nd to help.' : note);
   }
 
+  void _label(HandPc pc) =>
+      bind.mainSetPeerOptionSync(id: pc.ip, key: 'alias', value: _nameOf(pc));
+
   void _askToHelp(HandPc pc) {
+    _label(pc);
     HandHelp.instance.clear(pc.ip);
     connect(context, pc.ip, loginMethod: 'request-approval');
   }
 
   void _takeOver(HandPc pc) {
+    _label(pc);
     HandHelp.instance.clear(pc.ip);
     connect(context, pc.ip);
   }
