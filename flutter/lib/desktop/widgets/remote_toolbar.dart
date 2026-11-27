@@ -851,7 +851,7 @@ class _RemoteToolbarState extends State<RemoteToolbar> {
       toolbarItems.add(_VoiceCallMenu(id: widget.id, ffi: widget.ffi));
     }
     if (isWindows && widget.ffi.connType == ConnType.defaultConn) {
-      toolbarItems.add(_HandTalkMenu(ffi: widget.ffi));
+      toolbarItems.add(_HandTalkMenu(id: widget.id, ffi: widget.ffi));
     }
     if (!isWeb) toolbarItems.add(_RecordMenu());
     toolbarItems.add(_CloseMenu(id: widget.id, ffi: widget.ffi));
@@ -3824,8 +3824,10 @@ class _MinimizedMonitorSwitchButton extends StatelessWidget {
 }
 
 class _HandTalkMenu extends StatefulWidget {
+  final String id;
   final FFI ffi;
-  const _HandTalkMenu({Key? key, required this.ffi}) : super(key: key);
+  const _HandTalkMenu({Key? key, required this.id, required this.ffi})
+      : super(key: key);
 
   @override
   State<_HandTalkMenu> createState() => _HandTalkMenuState();
@@ -3853,6 +3855,27 @@ class _HandTalkMenuState extends State<_HandTalkMenu> {
     setState(() {});
   }
 
+  Future<void> _pointer() async {
+    final model = widget.ffi.ffiModel;
+    final sid = widget.ffi.sessionId;
+    final turnOn = !model.showMyCursor;
+    await bind.sessionToggleOption(
+        sessionId: sid, value: kOptionToggleShowMyCursor);
+    model.setShowMyCursor(await bind.sessionGetToggleOption(
+            sessionId: sid, arg: kOptionToggleShowMyCursor) ??
+        turnOn);
+    if (model.viewOnly != turnOn) {
+      await bind.sessionToggleOption(
+          sessionId: sid, value: kOptionToggleViewOnly);
+      model.setViewOnly(
+          widget.id,
+          await bind.sessionGetToggleOption(
+                  sessionId: sid, arg: kOptionToggleViewOnly) ??
+              turnOn);
+    }
+    if (mounted) setState(() {});
+  }
+
   Widget _icon(IconData icon) => Icon(icon, color: Colors.white, size: 18);
 
   @override
@@ -3862,7 +3885,21 @@ class _HandTalkMenuState extends State<_HandTalkMenu> {
       final talking = status == VoiceCallStatus.connected;
       final micOff = !talking || bind.handMicMuted();
       final themOff = _themMuted;
+      final pointing = widget.ffi.ffiModel.showMyCursor;
       return Row(mainAxisSize: MainAxisSize.min, children: [
+        _IconMenuButton(
+          icon: _icon(Icons.near_me_rounded),
+          tooltip: pointing
+              ? 'Stop pointing and take control again'
+              : 'Point: they see your pointer and its trail, your clicks don\'t touch their PC',
+          onPressed: widget.ffi.ffiModel.keyboard ? _pointer : null,
+          color: pointing
+              ? _ToolbarTheme.blueColor
+              : _ToolbarTheme.inactiveColor,
+          hoverColor: pointing
+              ? _ToolbarTheme.hoverBlueColor
+              : _ToolbarTheme.hoverInactiveColor,
+        ),
         _IconMenuButton(
           icon: _icon(micOff ? Icons.mic_off_rounded : Icons.mic_rounded),
           tooltip: !talking

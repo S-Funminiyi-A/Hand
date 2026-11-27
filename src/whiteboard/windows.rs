@@ -70,6 +70,7 @@ pub(super) fn create_event_loop() -> ResultType<()> {
     };
 
     let mut ripples: Vec<Ripple> = Vec::new();
+    let mut trails = super::hand_trail::Trails::default();
     let mut last_cursors: HashMap<String, Cursor> = HashMap::new();
     let mut resized = final_size.is_none();
 
@@ -123,6 +124,7 @@ pub(super) fn create_event_loop() -> ResultType<()> {
                 };
                 pixmap.fill(Color::TRANSPARENT);
 
+                trails.draw(&mut pixmap);
                 Ripple::retain_active(&mut ripples);
                 for ripple in &ripples {
                     let (radius, alpha) = ripple.get_radius_alpha();
@@ -217,6 +219,7 @@ pub(super) fn create_event_loop() -> ResultType<()> {
                             start_time: Instant::now(),
                         });
                     }
+                    trails.push(&k, cursor.x, cursor.y);
                     last_cursors.insert(k, cursor);
                 }
                 CustomEvent::Exit => {
