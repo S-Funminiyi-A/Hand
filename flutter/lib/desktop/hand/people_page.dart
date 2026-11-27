@@ -1,111 +1,18 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:get/get.dart';
 import 'package:flutter_hbb/common.dart';
 import 'package:flutter_hbb/models/platform_model.dart';
 
-const Color kHandPurple = Color(0xFF582B7F);
-const Color kHandYellow = Color(0xFFFAA41A);
-const Color kHandOnline = Color(0xFF2E9E5B);
-const String _kHostTag = 'tag:hand-host';
-const String _kNamesOption = 'hand-display-names';
-
-enum HandPcKind { staff, mine }
-
-class HandPc {
-  final String key;
-  final String hostName;
-  final String ip;
-  final String os;
-  final bool online;
-  final DateTime? lastSeen;
-  final HandPcKind kind;
-  HandPc({
-    required this.key,
-    required this.hostName,
-    required this.ip,
-    required this.os,
-    required this.online,
-    required this.lastSeen,
-    required this.kind,
-  });
-}
-
-class HandTailnetResult {
-  final List<HandPc> pcs;
-  final String? error;
-  HandTailnetResult(this.pcs, [this.error]);
-}
-
-Future<HandTailnetResult> readTailnet() async {
-  const candidates = [
-    r'C:\Program Files\Tailscale\tailscale.exe',
-    'tailscale',
-  ];
-  ProcessResult? res;
-  for (final exe in candidates) {
-    if (exe.contains('\\') && !File(exe).existsSync()) continue;
-    try {
-      res = await Process.run(exe, ['status', '--json'])
-          .timeout(const Duration(seconds: 6));
-      break;
-    } catch (_) {
-      continue;
-    }
-  }
-  if (res == null) {
-    return HandTailnetResult([], 'not-installed');
-  }
-  if (res.exitCode != 0) {
-    return HandTailnetResult([], 'not-running');
-  }
-  try {
-    final data = jsonDecode(res.stdout as String) as Map<String, dynamic>;
-    if (data['BackendState'] != 'Running') {
-      return HandTailnetResult([], 'not-running');
-    }
-    final self = data['Self'] as Map<String, dynamic>? ?? {};
-    final myUser = self['UserID'];
-    final peers = (data['Peer'] as Map<String, dynamic>? ?? {}).values;
-    final pcs = <HandPc>[];
-    for (final p in peers) {
-      final peer = p as Map<String, dynamic>;
-      final tags = (peer['Tags'] as List?)?.cast<String>() ?? const [];
-      final ips = (peer['TailscaleIPs'] as List?)?.cast<String>() ?? const [];
-      final ipv4 = ips.firstWhere((ip) => !ip.contains(':'),
-          orElse: () => ips.isEmpty ? '' : ips.first);
-      if (ipv4.isEmpty) continue;
-      HandPcKind? kind;
-      if (tags.contains(_kHostTag)) {
-        kind = HandPcKind.staff;
-      } else if (tags.isEmpty &&
-          peer['UserID'] == myUser &&
-          (peer['OS'] as String? ?? '').toLowerCase() == 'windows') {
-        kind = HandPcKind.mine;
-      }
-      if (kind == null) continue;
-      pcs.add(HandPc(
-        key: peer['ID']?.toString() ?? ipv4,
-        hostName: peer['HostName'] as String? ?? ipv4,
-        ip: ipv4,
-        os: peer['OS'] as String? ?? '',
-        online: peer['Online'] == true,
-        lastSeen: DateTime.tryParse(peer['LastSeen'] as String? ?? ''),
-        kind: kind,
-      ));
-    }
-    return HandTailnetResult(pcs);
-  } catch (_) {
-    return HandTailnetResult([], 'unreadable');
-  }
-}
+import 'help.dart';
+import 'tailnet.dart';
 
 Map<String, String> _loadNames() {
   try {
-    final raw = bind.mainGetLocalOption(key: _kNamesOption);
+    final raw = bind.mainGetLocalOption(key: kHandNamesOption);
     if (raw.isEmpty) return {};
     return (jsonDecode(raw) as Map<String, dynamic>).cast<String, String>();
   } catch (_) {
@@ -114,7 +21,7 @@ Map<String, String> _loadNames() {
 }
 
 void _saveNames(Map<String, String> names) {
-  bind.mainSetLocalOption(key: _kNamesOption, value: jsonEncode(names));
+  bind.mainSetLocalOption(key: kHandNamesOption, value: jsonEncode(names));
 }
 
 String _lastSeenText(HandPc pc) {
@@ -146,6 +53,8 @@ class _HandPeoplePageState extends State<HandPeoplePage> {
   void initState() {
     super.initState();
     _names = _loadNames();
+    HandHelp.instance.onNewRequest = _notify;
+    HandHelp.instance.listen();
     _refresh();
     _timer = Timer.periodic(const Duration(seconds: 10), (_) => _refresh());
   }
@@ -176,10 +85,23 @@ class _HandPeoplePageState extends State<HandPeoplePage> {
     _saveNames(_names);
   }
 
-  void _askToHelp(HandPc pc) =>
-      connect(context, pc.ip, loginMethod: 'request-approval');
+  void _notify(String ip, String note) {
+    final pc = _result?.pcs.firstWhereOrNull((p) => p.ip == ip);
+    final name = pc == null ? ip : _nameOf(pc);
+    bind.handNotify(
+        title: '$name needs a hand',
+        body: note.isEmpty ? 'Open H&nd to help.' : note);
+  }
 
-  void _takeOver(HandPc pc) => connect(context, pc.ip);
+  void _askToHelp(HandPc pc) {
+    HandHelp.instance.clear(pc.ip);
+    connect(context, pc.ip, loginMethod: 'request-approval');
+  }
+
+  void _takeOver(HandPc pc) {
+    HandHelp.instance.clear(pc.ip);
+    connect(context, pc.ip);
+  }
 
   void _connectAddress() {
     final address = _addressController.text.trim();
@@ -293,9 +215,17 @@ class _HandPeoplePageState extends State<HandPeoplePage> {
         },
       );
     }
-    final staff = _filtered(HandPcKind.staff);
+    return Obx(() => _buildLists(HandHelp.instance.requests));
+  }
+
+  Widget _buildLists(Map<String, HandHelpRequest> requests) {
+    final asking = requests.values.toList()
+      ..sort((a, b) => a.at.compareTo(b.at));
+    final staff = _filtered(HandPcKind.staff)
+        .where((p) => !requests.containsKey(p.ip))
+        .toList();
     final mine = _filtered(HandPcKind.mine);
-    if (staff.isEmpty && mine.isEmpty) {
+    if (asking.isEmpty && staff.isEmpty && mine.isEmpty) {
       return _Notice(
         title: _query.isEmpty ? 'No PCs yet' : 'Nobody matches "$_query"',
         body: _query.isEmpty
@@ -306,6 +236,33 @@ class _HandPeoplePageState extends State<HandPeoplePage> {
     return ListView(
       padding: const EdgeInsets.only(bottom: 32),
       children: [
+        if (asking.isNotEmpty) ...[
+          _SectionLabel('Needs a hand', asking.length, asking.length,
+              countText: '${asking.length} waiting'),
+          ...asking.map((r) {
+            final pc = _result?.pcs.firstWhereOrNull((p) => p.ip == r.ip) ??
+                HandPc(
+                    key: r.ip,
+                    hostName: r.ip,
+                    ip: r.ip,
+                    os: '',
+                    online: true,
+                    lastSeen: null,
+                    kind: HandPcKind.staff);
+            return _PcRow(
+              pc: pc,
+              name: _nameOf(pc),
+              onRename: (n) => _rename(pc, n),
+              request: r,
+              onDismiss: () => HandHelp.instance.clear(r.ip),
+              primaryLabel: 'Take over',
+              onPrimary: () => _takeOver(pc),
+              secondaryLabel: 'Ask to help',
+              onSecondary: () => _askToHelp(pc),
+            );
+          }),
+          const SizedBox(height: 24),
+        ],
         if (staff.isNotEmpty) ...[
           _SectionLabel('Staff', staff.where((p) => p.online).length,
               staff.length),
@@ -340,7 +297,8 @@ class _SectionLabel extends StatelessWidget {
   final String label;
   final int online;
   final int total;
-  const _SectionLabel(this.label, this.online, this.total);
+  final String? countText;
+  const _SectionLabel(this.label, this.online, this.total, {this.countText});
 
   @override
   Widget build(BuildContext context) {
@@ -352,7 +310,7 @@ class _SectionLabel extends StatelessWidget {
           Text(label,
               style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
           const SizedBox(width: 8),
-          Text('$online of $total online',
+          Text(countText ?? '$online of $total online',
               style: TextStyle(fontSize: 13, color: theme.hintColor)),
         ],
       ),
@@ -368,8 +326,12 @@ class _PcRow extends StatefulWidget {
   final VoidCallback onPrimary;
   final String? secondaryLabel;
   final VoidCallback? onSecondary;
+  final HandHelpRequest? request;
+  final VoidCallback? onDismiss;
 
   const _PcRow({
+    this.request,
+    this.onDismiss,
     required this.pc,
     required this.name,
     required this.onRename,
@@ -405,6 +367,14 @@ class _PcRowState extends State<_PcRow> {
     WidgetsBinding.instance.addPostFrameCallback((_) => _focus.requestFocus());
   }
 
+  String _subtitle(HandPc pc) {
+    final r = widget.request;
+    if (r == null) return '${_lastSeenText(pc)} · ${pc.ip}';
+    final mins = DateTime.now().difference(r.at).inMinutes;
+    final when = mins < 1 ? 'just now' : '$mins min ago';
+    return r.note.isEmpty ? 'Asked $when' : '"${r.note}" · $when';
+  }
+
   void _finishEdit(bool save) {
     if (save) widget.onRename(_edit.text);
     setState(() => _editing = false);
@@ -414,12 +384,16 @@ class _PcRowState extends State<_PcRow> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final pc = widget.pc;
-    final rowColor = _hover ? theme.hoverColor : Colors.transparent;
+    final asking = widget.request != null;
+    final rowColor = asking
+        ? kHandYellow.withOpacity(0.12)
+        : (_hover ? theme.hoverColor : Colors.transparent);
     return MouseRegion(
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
       child: Container(
         height: 56,
+        margin: EdgeInsets.only(bottom: asking ? 4 : 0),
         padding: const EdgeInsets.symmetric(horizontal: 16),
         decoration: BoxDecoration(
           color: rowColor,
@@ -432,7 +406,9 @@ class _PcRowState extends State<_PcRow> {
               height: 8,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: pc.online ? kHandOnline : theme.disabledColor,
+                color: asking
+                    ? kHandYellow
+                    : (pc.online ? kHandOnline : theme.disabledColor),
               ),
             ),
             const SizedBox(width: 16),
@@ -466,6 +442,18 @@ class _PcRowState extends State<_PcRow> {
                   style: const TextStyle(
                       fontSize: 14, fontWeight: FontWeight.w500)),
             ),
+            if (asking) ...[
+              const SizedBox(width: 4),
+              Tooltip(
+                message: 'Dismiss',
+                child: IconButton(
+                  onPressed: widget.onDismiss,
+                  icon: Icon(Icons.close_rounded,
+                      size: 18, color: theme.hintColor),
+                  splashRadius: 18,
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -531,7 +519,9 @@ class _PcRowState extends State<_PcRow> {
           ],
         ),
         const SizedBox(height: 2),
-        Text('${_lastSeenText(pc)} · ${pc.ip}',
+        Text(_subtitle(pc),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(fontSize: 12, color: theme.hintColor)),
       ],
     );

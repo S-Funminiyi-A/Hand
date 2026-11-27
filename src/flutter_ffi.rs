@@ -1162,6 +1162,28 @@ pub fn hand_aspect_bind(window_id: i32, token: String) -> SyncReturn<bool> {
     }
 }
 
+pub fn hand_notify(title: String, body: String) -> SyncReturn<bool> {
+    #[cfg(windows)]
+    {
+        use tauri_winrt_notification::{Duration, Sound, Toast};
+        let shown = Toast::new(Toast::POWERSHELL_APP_ID)
+            .title(&title)
+            .text1(&body)
+            .sound(Some(Sound::Default))
+            .duration(Duration::Long)
+            .show();
+        if let Err(e) = &shown {
+            log::error!("Hand notification failed: {:?}", e);
+        }
+        return SyncReturn(shown.is_ok());
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = (title, body);
+        SyncReturn(false)
+    }
+}
+
 pub fn hand_aspect_set(window_id: i32, ratio: f64, extra_w: i32, extra_h: i32) -> SyncReturn<bool> {
     #[cfg(windows)]
     crate::platform::windows::hand_aspect::set(window_id, ratio, extra_w, extra_h);
