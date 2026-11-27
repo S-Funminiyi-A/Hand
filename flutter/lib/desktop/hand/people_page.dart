@@ -53,8 +53,7 @@ class _HandPeoplePageState extends State<HandPeoplePage> {
   void initState() {
     super.initState();
     _names = _loadNames();
-    HandHelp.instance.onNewRequest = _notify;
-    HandHelp.instance.listen();
+    HandHelp.instance.watch();
     _refresh();
     _timer = Timer.periodic(const Duration(seconds: 10), (_) => _refresh());
   }
@@ -83,14 +82,6 @@ class _HandPeoplePageState extends State<HandPeoplePage> {
       }
     });
     _saveNames(_names);
-  }
-
-  void _notify(String ip, String note) {
-    final pc = _result?.pcs.firstWhereOrNull((p) => p.ip == ip);
-    final name = pc == null ? ip : _nameOf(pc);
-    bind.handNotify(
-        title: '$name needs a hand',
-        body: note.isEmpty ? 'Open H&nd to help.' : note);
   }
 
   void _label(HandPc pc) =>

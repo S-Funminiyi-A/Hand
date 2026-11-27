@@ -20,6 +20,8 @@ pub fn start_tray() {
     #[cfg(target_os = "linux")]
     crate::server::check_zombie();
 
+    #[cfg(windows)]
+    crate::hand_help::start_listener();
     allow_err!(make_tray());
 }
 

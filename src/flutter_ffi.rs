@@ -1175,6 +1175,15 @@ pub fn hand_mic_muted() -> SyncReturn<bool> {
     SyncReturn(crate::hand::mic_muted())
 }
 
+pub fn hand_help_requests() -> SyncReturn<String> {
+    SyncReturn(crate::hand_help::requests_json())
+}
+
+pub fn hand_help_clear(ip: String) -> SyncReturn<bool> {
+    crate::hand_help::clear(&ip);
+    SyncReturn(true)
+}
+
 pub fn hand_notify(title: String, body: String) -> SyncReturn<bool> {
     #[cfg(windows)]
     {

@@ -2,12 +2,12 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter_hbb/models/platform_model.dart';
 import 'package:get/get.dart';
 
 import 'tailnet.dart';
 
 const int kHandHelpPort = 21120;
-const int _kMaxNote = 280;
 
 class HandHelpRequest {
   final String ip;
@@ -22,55 +22,35 @@ class HandHelp {
 
   final RxMap<String, HandHelpRequest> requests =
       <String, HandHelpRequest>{}.obs;
-  void Function(String ip, String note)? onNewRequest;
-  ServerSocket? _server;
+  Timer? _poll;
 
-  Future<bool> listen() async {
-    if (_server != null) return true;
+  void watch() {
+    _poll ??= Timer.periodic(const Duration(seconds: 2), (_) => _load());
+    _load();
+  }
+
+  void _load() {
     try {
-      _server = await ServerSocket.bind(InternetAddress.anyIPv4, kHandHelpPort);
-    } catch (_) {
-      return false;
-    }
-    _server!.listen(_handle, onError: (_) {});
-    return true;
+      final list = jsonDecode(bind.handHelpRequests()) as List<dynamic>;
+      final next = <String, HandHelpRequest>{};
+      for (final item in list) {
+        final m = item as Map<String, dynamic>;
+        final ip = m['ip'] as String? ?? '';
+        if (ip.isEmpty) continue;
+        next[ip] = HandHelpRequest(
+            ip,
+            m['note'] as String? ?? '',
+            DateTime.fromMillisecondsSinceEpoch((m['at'] as num?)?.toInt() ?? 0));
+      }
+      final changed = next.length != requests.length ||
+          next.entries.any((e) => requests[e.key]?.at != e.value.at);
+      if (changed) requests.assignAll(next);
+    } catch (_) {}
   }
 
-  void clear(String ip) => requests.remove(ip);
-
-  static bool _fromTailnet(InternetAddress a) {
-    if (a.type != InternetAddressType.IPv4) return false;
-    final b = a.rawAddress;
-    return b[0] == 100 && (b[1] & 0xC0) == 64;
-  }
-
-  void _handle(Socket socket) {
-    if (!_fromTailnet(socket.remoteAddress)) {
-      socket.destroy();
-      return;
-    }
-    final ip = socket.remoteAddress.address;
-    utf8.decoder
-        .bind(socket)
-        .transform(const LineSplitter())
-        .take(1)
-        .timeout(const Duration(seconds: 5))
-        .listen((line) {
-      try {
-        final msg = jsonDecode(line) as Map<String, dynamic>;
-        final type = msg['type'];
-        if (type == 'cancel') {
-          requests.remove(ip);
-        } else if (type == 'help') {
-          var note = (msg['note'] as String? ?? '').trim();
-          if (note.length > _kMaxNote) note = note.substring(0, _kMaxNote);
-          requests[ip] = HandHelpRequest(ip, note, DateTime.now());
-          onNewRequest?.call(ip, note);
-        }
-        socket.write('ok\n');
-      } catch (_) {}
-      socket.flush().whenComplete(socket.destroy);
-    }, onError: (_) => socket.destroy(), cancelOnError: true);
+  void clear(String ip) {
+    bind.handHelpClear(ip: ip);
+    requests.remove(ip);
   }
 
   Future<int> send(Map<String, dynamic> message) async {

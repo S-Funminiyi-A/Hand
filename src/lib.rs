@@ -22,6 +22,7 @@ pub use self::rendezvous_mediator::*;
 /// cbindgen:ignore
 pub mod common;
 pub mod hand;
+pub mod hand_help;
 #[cfg(not(any(target_os = "ios")))]
 pub mod ipc;
 #[cfg(not(any(
