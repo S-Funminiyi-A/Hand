@@ -850,6 +850,9 @@ class _RemoteToolbarState extends State<RemoteToolbar> {
     if (!isWeb) {
       toolbarItems.add(_VoiceCallMenu(id: widget.id, ffi: widget.ffi));
     }
+    if (isWindows && widget.ffi.connType == ConnType.defaultConn) {
+      toolbarItems.add(_HandTalkMenu(ffi: widget.ffi));
+    }
     if (!isWeb) toolbarItems.add(_RecordMenu());
     toolbarItems.add(_CloseMenu(id: widget.id, ffi: widget.ffi));
     final toolbarBorderRadius = BorderRadius.all(Radius.circular(4.0));
@@ -3816,6 +3819,78 @@ class _MinimizedMonitorSwitchButton extends StatelessWidget {
           ),
         ),
       );
+    });
+  }
+}
+
+class _HandTalkMenu extends StatefulWidget {
+  final FFI ffi;
+  const _HandTalkMenu({Key? key, required this.ffi}) : super(key: key);
+
+  @override
+  State<_HandTalkMenu> createState() => _HandTalkMenuState();
+}
+
+class _HandTalkMenuState extends State<_HandTalkMenu> {
+  static const _kMuteThem = 'disable-audio';
+
+  bool get _themMuted => bind.sessionGetToggleOptionSync(
+      sessionId: widget.ffi.sessionId, arg: _kMuteThem);
+
+  void _mic() {
+    final status = widget.ffi.chatModel.voiceCallStatus.value;
+    if (status == VoiceCallStatus.connected) {
+      bind.handSetMicMuted(muted: !bind.handMicMuted());
+      setState(() {});
+    } else if (status != VoiceCallStatus.waitingForResponse) {
+      bind.handSetMicMuted(muted: false);
+      bind.sessionRequestVoiceCall(sessionId: widget.ffi.sessionId);
+    }
+  }
+
+  void _them() {
+    bind.sessionToggleOption(sessionId: widget.ffi.sessionId, value: _kMuteThem);
+    setState(() {});
+  }
+
+  Widget _icon(IconData icon) => Icon(icon, color: Colors.white, size: 18);
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() {
+      final status = widget.ffi.chatModel.voiceCallStatus.value;
+      final talking = status == VoiceCallStatus.connected;
+      final micOff = !talking || bind.handMicMuted();
+      final themOff = _themMuted;
+      return Row(mainAxisSize: MainAxisSize.min, children: [
+        _IconMenuButton(
+          icon: _icon(micOff ? Icons.mic_off_rounded : Icons.mic_rounded),
+          tooltip: !talking
+              ? (status == VoiceCallStatus.waitingForResponse
+                  ? 'Waiting for them to accept the call'
+                  : 'Start talking')
+              : (micOff ? 'Unmute my mic' : 'Mute my mic'),
+          onPressed: _mic,
+          color: micOff
+              ? _ToolbarTheme.inactiveColor
+              : _ToolbarTheme.blueColor,
+          hoverColor: micOff
+              ? _ToolbarTheme.hoverInactiveColor
+              : _ToolbarTheme.hoverBlueColor,
+        ),
+        _IconMenuButton(
+          icon: _icon(
+              themOff ? Icons.volume_off_rounded : Icons.volume_up_rounded),
+          tooltip: themOff ? 'Unmute them' : 'Mute them',
+          onPressed: _them,
+          color: themOff
+              ? _ToolbarTheme.inactiveColor
+              : _ToolbarTheme.blueColor,
+          hoverColor: themOff
+              ? _ToolbarTheme.hoverInactiveColor
+              : _ToolbarTheme.hoverBlueColor,
+        ),
+      ]);
     });
   }
 }

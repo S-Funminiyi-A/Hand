@@ -14,6 +14,7 @@ bool _compact = false;
 bool handUsesConnectedBar(Client client) =>
     client.authorized &&
     !client.disconnected &&
+    !client.incomingVoiceCall &&
     client.type_() == ClientType.remote;
 
 Future<void> _setCompact(bool compact) async {
@@ -113,9 +114,10 @@ class _HandConnectedBarState extends State<HandConnectedBar> {
           Padding(
             padding: const EdgeInsets.only(left: 16),
             child: Text(
-                paused
-                    ? 'You have control. They can watch but not click.'
-                    : 'They can use your mouse and keyboard.',
+                (paused
+                        ? 'You have control. They can watch but not click.'
+                        : 'They can use your mouse and keyboard.') +
+                    (client.inVoiceCall ? ' On a call.' : ''),
                 style: TextStyle(fontSize: 12, color: theme.hintColor)),
           ),
           const Spacer(),

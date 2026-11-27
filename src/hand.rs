@@ -1,5 +1,16 @@
 use base::config::keys;
 use hbb_common::config;
+use std::sync::atomic::{AtomicBool, Ordering};
+
+static MIC_MUTED: AtomicBool = AtomicBool::new(false);
+
+pub fn mic_muted() -> bool {
+    MIC_MUTED.load(Ordering::Relaxed)
+}
+
+pub fn set_mic_muted(muted: bool) {
+    MIC_MUTED.store(muted, Ordering::Relaxed);
+}
 
 pub const APP_NAME: &str = "Hand";
 const TAILNET_ONLY: &str = "100.64.0.0/10,fd7a:115c:a1e0::/48,127.0.0.1,::1";

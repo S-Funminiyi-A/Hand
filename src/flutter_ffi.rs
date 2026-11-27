@@ -1166,6 +1166,15 @@ pub fn hand_setup_info() -> SyncReturn<String> {
     SyncReturn(crate::hand::setup_info())
 }
 
+pub fn hand_set_mic_muted(muted: bool) -> SyncReturn<bool> {
+    crate::hand::set_mic_muted(muted);
+    SyncReturn(true)
+}
+
+pub fn hand_mic_muted() -> SyncReturn<bool> {
+    SyncReturn(crate::hand::mic_muted())
+}
+
 pub fn hand_notify(title: String, body: String) -> SyncReturn<bool> {
     #[cfg(windows)]
     {

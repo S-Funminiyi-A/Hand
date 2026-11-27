@@ -634,9 +634,11 @@ impl<T: InvokeUiSession> Remote<T> {
                     match rx_audio_data.try_recv() {
                         Ok((_instant, msg)) => match &msg.union {
                             Some(message::Union::AudioFrame(frame)) => {
-                                let mut msg = Message::new();
-                                msg.set_audio_frame(frame.clone());
-                                tx_audio.send(Data::Message(msg)).ok();
+                                if !crate::hand::mic_muted() {
+                                    let mut msg = Message::new();
+                                    msg.set_audio_frame(frame.clone());
+                                    tx_audio.send(Data::Message(msg)).ok();
+                                }
                             }
                             Some(message::Union::Misc(misc)) => {
                                 let mut msg = Message::new();
