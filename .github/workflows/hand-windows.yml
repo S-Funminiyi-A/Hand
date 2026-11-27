@@ -9,6 +9,9 @@ on:
     - docs/**
 permissions:
   contents: write
+concurrency:
+  group: hand-windows
+  cancel-in-progress: true
 env:
   SCITER_RUST_VERSION: '1.75'
   RUST_VERSION: '1.75'
